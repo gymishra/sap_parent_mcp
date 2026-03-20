@@ -1,0 +1,57 @@
+{
+  "mcpServers": {
+    "sap-mcp-docs": {
+      "command": "python",
+      "args": [
+        "sap-mcp-docs-server/sap_mcp_docs_server.py"
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "get_architecture_info",
+        "search_architecture"
+      ]
+    },
+    "sap-smart": {
+      "command": "python",
+      "args": [
+        "sap-smart-agent/kiro_bridge.py"
+      ],
+      "env": {
+        "OKTA_DOMAIN": "<your-okta-domain>",
+        "OKTA_AUTH_SERVER": "default",
+        "OKTA_CLIENT_ID": "<your-okta-client-id>",
+        "OKTA_CLIENT_SECRET": "<your-okta-client-secret>",
+        "OKTA_SCOPES": "openid email",
+        "OKTA_REDIRECT_URI": "http://localhost:8086/callback",
+        "AGENTCORE_ARN_SSM_PARAM": "/sap_smart_agent/agent_arn"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "discover_sap_services",
+        "get_service_metadata",
+        "query_sap_odata",
+        "get_sap_entity",
+        "create_sap_entity",
+        "call_adt_api",
+        "generate_and_deploy_mcp_server"
+      ]
+    },
+    "sap-sales-order": {
+      "command": "python",
+      "args": [
+        "sap-sales-order-agent/kiro_bridge.py"
+      ],
+      "env": {
+        "OKTA_DOMAIN": "<your-okta-domain>",
+        "OKTA_AUTH_SERVER": "default",
+        "OKTA_CLIENT_ID": "<your-okta-client-id>",
+        "OKTA_CLIENT_SECRET": "<your-okta-client-secret>",
+        "OKTA_SCOPES": "openid email",
+        "OKTA_REDIRECT_URI": "http://localhost:8087/callback",
+        "AGENTCORE_ARN_SSM_PARAM": "/sap_generated/sap_sales_order_agent/agent_arn"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

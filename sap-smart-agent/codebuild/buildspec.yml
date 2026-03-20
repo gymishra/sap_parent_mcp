@@ -1,0 +1,80 @@
+version: 0.2
+
+env:
+  parameter-store:
+    OKTA_CLIENT_ID: "/sap_smart_agent/okta_client_id"
+    OKTA_DOMAIN: "/sap_smart_agent/okta_domain"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      - pip install bedrock-agentcore-starter-toolkit boto3 --quiet
+
+  pre_build:
+    commands:
+      - echo "Downloading generated server code from S3..."
+      - aws s3 cp s3://${STAGING_BUCKET}/generated/${BUILD_ID}/server.py ./sap_generated_mcp_server.py
+      - aws s3 cp s3://${STAGING_BUCKET}/generated/${BUILD_ID}/requirements.txt ./requirements_generated.txt
+      - aws s3 cp s3://${STAGING_BUCKET}/generated/${BUILD_ID}/meta.json ./meta.json
+      - AGENT_NAME=$(python -c "import json; print(json.load(open('meta.json'))['agent_name'])")
+      - echo "Agent name: $AGENT_NAME"
+
+  build:
+    commands:
+      - echo "Deploying $AGENT_NAME to AgentCore..."
+      - |
+        python - <<'EOF'
+        import os, json, time, boto3
+        from bedrock_agentcore_starter_toolkit import Runtime
+        from boto3.session import Session
+
+        agent_name = json.load(open("meta.json"))["agent_name"]
+        okta_domain = os.environ["OKTA_DOMAIN"]
+        okta_client_id = os.environ["OKTA_CLIENT_ID"]
+        region = Session().region_name
+
+        runtime = Runtime()
+        auth_config = {
+            "customJWTAuthorizer": {
+                "allowedClients": [okta_client_id],
+                "discoveryUrl": f"https://{okta_domain}/oauth2/default/.well-known/openid-configuration",
+            }
+        }
+
+        runtime.configure(
+            entrypoint="sap_generated_mcp_server.py",
+            auto_create_execution_role=True,
+            auto_create_ecr=True,
+            requirements_file="requirements_generated.txt",
+            region=region,
+            authorizer_configuration=auth_config,
+            protocol="MCP",
+            agent_name=agent_name,
+        )
+
+        result = runtime.launch(auto_update_on_conflict=True)
+        print(f"Launched: {result.agent_arn}")
+
+        while True:
+            status = runtime.status().endpoint["status"]
+            print(f"Status: {status}")
+            if status in ["READY", "CREATE_FAILED", "UPDATE_FAILED"]:
+                break
+            time.sleep(15)
+
+        if status == "READY":
+            ssm = boto3.client("ssm", region_name=region)
+            ssm_key = f"/sap_generated/{agent_name}/agent_arn"
+            ssm.put_parameter(Name=ssm_key, Value=result.agent_arn, Type="String", Overwrite=True)
+            print(f"ARN stored at SSM: {ssm_key}")
+            print(f"DEPLOY_SUCCESS:{result.agent_arn}")
+        else:
+            print(f"DEPLOY_FAILED:{status}")
+            exit(1)
+        EOF
+
+  post_build:
+    commands:
+      - echo "Build complete"

@@ -1,0 +1,55 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+            "Resource": "arn:aws:logs:us-east-1:953841955037:log-group:/aws/codebuild/sap-mcp-generator*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket", "s3:GetBucketLocation", "s3:HeadBucket", "s3:CreateBucket", "s3:PutBucketPolicy"],
+            "Resource": [
+                "arn:aws:s3:::sap-mcp-generator-953841955037-us-east-1",
+                "arn:aws:s3:::sap-mcp-generator-953841955037-us-east-1/*",
+                "arn:aws:s3:::bedrock-agentcore-codebuild-sources-953841955037-us-east-1",
+                "arn:aws:s3:::bedrock-agentcore-codebuild-sources-953841955037-us-east-1/*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["ssm:GetParameter", "ssm:GetParameters", "ssm:PutParameter"],
+            "Resource": "arn:aws:ssm:us-east-1:953841955037:parameter/*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["ecr:*"],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["bedrock-agentcore:*"],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["iam:CreateRole", "iam:AttachRolePolicy", "iam:PassRole", "iam:GetRole", "iam:PutRolePolicy"],
+            "Resource": "arn:aws:iam::953841955037:role/*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["sts:GetCallerIdentity"],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["codebuild:*"],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": ["cloudwatch:*", "xray:*", "logs:*"],
+            "Resource": "*"
+        }
+    ]
+}

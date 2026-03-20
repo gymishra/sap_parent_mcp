@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Secrets & tokens
+.okta_token_cache.json
+*.okta_token_cache.json
+
+# Build artifacts
+source.zip
+source_fixed.zip
+meta_fix2.json
+generated/
+
+# Kiro settings (contains secrets)
+.kiro/settings/mcp.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# AgentCore
+.bedrock_agentcore.yaml
