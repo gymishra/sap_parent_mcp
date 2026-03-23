@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Refresh SAP Cache",
+  "description": "Rebuilds the local SAP service catalog and metadata cache from the live SAP system. Click to refresh when new services are added.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "python sap-cache/build_cache.py",
+    "timeout": 300
+  },
+  "workspaceFolderName": "New folder (2)",
+  "shortName": "refresh-sap-cache"
+}
