@@ -126,14 +126,16 @@ exports.handler = async (event) => {
 
         console.log('MCP Request:', body.method, body.params?.name || '');
 
-        // Get Okta token - either from incoming request or fetch new one
+        // Get token from QuickSuite Authorization header, body, or Okta
         let token;
-        if (body._auth_token) {
-            // Token passed from QuickSuite
+        const authHeader = event.headers && (event.headers['Authorization'] || event.headers['authorization']);
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.substring(7);
+        } else if (body._auth_token) {
             token = body._auth_token;
             delete body._auth_token;
         } else {
-            token = await getOktaToken();
+            try { token = await getOktaToken(); } catch(e) { token = ''; }
         }
 
         // Forward entire MCP request to AgentCore
