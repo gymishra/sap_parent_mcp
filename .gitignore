@@ -27,3 +27,5 @@ Thumbs.db
 
 # AgentCore
 .bedrock_agentcore.yaml
+# Exclude AWS reference samples (separate repo)
+amazon-bedrock-agentcore-samples/
