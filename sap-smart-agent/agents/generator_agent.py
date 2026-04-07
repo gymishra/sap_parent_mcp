@@ -111,20 +111,34 @@ def _generate_s4_tools(prompt: str, services_with_entities: list, agent_name: st
         "You are an expert SAP developer. Generate Python MCP tool functions for a FastMCP server.\n"
         "CRITICAL: Entity type names end in 'Type' — strip it for the URL path.\n"
         "  e.g. A_SalesOrderType → use A_SalesOrder in the URL\n\n"
-        "Use ONLY this pattern:\n"
+        "You have TWO data access methods available:\n"
+        "1. _sap_get(path, token, params) — for OData API queries\n"
+        "2. _adt_sql(sql_query, token, max_rows) — for direct SQL on SAP tables\n\n"
+        "Use OData when the service is available. Use SQL for:\n"
+        "- Data not exposed via OData (e.g., BSEG line items, custom Z-tables)\n"
+        "- Enrichment: OData for headers + SQL for details\n"
+        "- Fallback when OData service might not be activated\n\n"
+        "Pattern for OData:\n"
         "@mcp.tool()\n"
-        "def func_name(ctx: Context, top: int = 10, skip: int = 0, filter_expr: str = \"\") -> str:\n"
-        "    \"\"\"docstring\"\"\"\n"
+        "def func_name(ctx: Context, ...) -> str:\n"
         "    token = _get_token(ctx)\n"
-        "    if not token: return json.dumps({\"error\": \"No bearer token\"})\n"
-        "    try:\n"
-        "        params = {\"$format\": \"json\", \"$top\": str(top), \"$skip\": str(skip)}\n"
-        "        if filter_expr: params[\"$filter\"] = filter_expr\n"
-        "        data = _sap_get(\"<service_path>/<entity_set>\", token, params)\n"
-        "        results = data.get(\"d\", {}).get(\"results\", [])\n"
-        "        return json.dumps({\"count\": len(results), \"results\": results}, indent=2)\n"
-        "    except Exception as e:\n"
-        "        return json.dumps({\"error\": str(e)})\n\n"
+        "    data = _sap_get('/sap/opu/odata/sap/SVC/Entity', token, {'$format':'json','$top':'10'})\n"
+        "    return json.dumps(data.get('d',{}).get('results',[]))\n\n"
+        "Pattern for SQL:\n"
+        "@mcp.tool()\n"
+        "def func_name(ctx: Context, ...) -> str:\n"
+        "    token = _get_token(ctx)\n"
+        "    rows = _adt_sql('SELECT col1, col2 FROM table WHERE ...', token)\n"
+        "    return json.dumps(rows)\n\n"
+        "Pattern for hybrid (OData + SQL):\n"
+        "@mcp.tool()\n"
+        "def func_name(ctx: Context, ...) -> str:\n"
+        "    token = _get_token(ctx)\n"
+        "    headers = _sap_get('/sap/opu/odata/sap/SVC/Entity', token, params).get('d',{}).get('results',[])\n"
+        "    for h in headers:\n"
+        "        details = _adt_sql(f\"SELECT ... FROM detail_table WHERE key = '{h['KeyField']}'\", token)\n"
+        "        h['details'] = details\n"
+        "    return json.dumps(headers)\n\n"
         "Return ONLY function definitions, no imports, no main block."
     )
     resp = bedrock.invoke_model(
@@ -195,8 +209,9 @@ def _generate_sf_tools(prompt: str) -> str:
 # ── Server templates ──────────────────────────────────────────────────────────
 _S4_TEMPLATE = '''"""
 {description} — Auto-generated AI Factory MCP Agent (S/4HANA).
+Hybrid: uses OData APIs + SQL via ADT for complete data access.
 """
-import os, json, logging, httpx
+import os, json, logging, httpx, xml.etree.ElementTree as ET
 from mcp.server.fastmcp import FastMCP, Context
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("{agent_name}")
@@ -204,14 +219,41 @@ SAP_BASE_URL = os.environ.get("SAP_BASE_URL", "https://vhcals4hci.awspoc.club")
 mcp = FastMCP("{agent_name}", host="0.0.0.0", stateless_http=True)
 def _get_token(ctx):
     try:
-        val = ctx.request_context.request.headers.get("authorization","")
-        if val.lower().startswith("bearer "): return val[7:]
+        for h in ["x-amzn-bedrock-agentcore-runtime-custom-saptoken", "authorization"]:
+            val = ctx.request_context.request.headers.get(h, "")
+            if val:
+                return val.replace("Bearer ", "").replace("bearer ", "") if val.lower().startswith("bearer ") else val
     except: pass
     return os.environ.get("SAP_BEARER_TOKEN","")
 def _sap_get(path, token, params=None):
     with httpx.Client(verify=False, timeout=30.0) as c:
         r = c.get(f"{{SAP_BASE_URL}}{{path}}", headers={{"Authorization":f"Bearer {{token}}","Accept":"application/json"}}, params=params or {{}})
         r.raise_for_status(); return r.json()
+def _adt_sql(sql_query, token, max_rows=100):
+    """Execute SQL via ADT freestyle data preview."""
+    url = f"{{SAP_BASE_URL}}/sap/bc/adt/datapreview/freestyle"
+    with httpx.Client(verify=False, timeout=30.0) as c:
+        csrf = c.get(f"{{SAP_BASE_URL}}/sap/bc/adt/discovery",
+            headers={{"Authorization":f"Bearer {{token}}","x-csrf-token":"Fetch","Accept":"*/*"}}).headers.get("x-csrf-token","")
+        r = c.post(url, content=sql_query.encode("utf-8"),
+            headers={{"Authorization":f"Bearer {{token}}","Content-Type":"text/plain","Accept":"application/xml","x-csrf-token":csrf}},
+            params={{"rowNumber":str(max_rows)}})
+        r.raise_for_status()
+        return _parse_adt_xml(r.text)
+def _parse_adt_xml(xml_text):
+    root = ET.fromstring(xml_text)
+    dp = "http://www.sap.com/adt/dataPreview"
+    cols = root.findall(f".//{{{dp}}}columns") or root.findall(f".//{{{dp}}}column")
+    names, data = [], []
+    for col in cols:
+        m = col.find(f"{{{dp}}}metadata")
+        if m is not None: names.append(m.get(f"{{{dp}}}name","") or m.get("name",""))
+        ds = col.find(f"{{{dp}}}dataSet")
+        data.append([d.text or "" for d in (ds.findall(f"{{{dp}}}data") if ds is not None else [])])
+    rows = []
+    for i in range(max(len(d) for d in data) if data else 0):
+        rows.append({{names[j]: data[j][i] if j<len(data) and i<len(data[j]) else "" for j in range(len(names))}})
+    return rows
 {tools}
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")

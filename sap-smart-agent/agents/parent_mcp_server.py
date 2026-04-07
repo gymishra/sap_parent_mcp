@@ -149,29 +149,29 @@ def adt_agent_tool(ctx: Context, question: str) -> str:
 
 @mcp.tool()
 def odata_agent_tool(ctx: Context, question: str) -> str:
-    """AI Factory — OData Agent for SAP S/4HANA business data retrieval.
+    """AI Factory — Hybrid Data Research Agent for SAP S/4HANA.
 
-    This is the FIRST tool to use when looking for data from SAP S/4HANA.
-    Use this tool when the task involves retrieving business data such as:
-    - Sales orders, purchase orders, invoices, RFQs, delivery documents
-    - Materials, vendors, customers, business partners
-    - Stock levels, pricing conditions, accounting documents
-    - Any structured business data from S/4HANA
+    FIRST tool to use for ANY S/4HANA data query. Combines OData APIs + SQL for complete results.
 
-    Workflow: search service → get metadata → query data.
-    If OData exists but not active → tries to activate it.
-    If no OData exists → informs caller to use adt_agent_tool for SQL query instead.
-    Also used for research: discovering what OData services and entities exist.
+    This agent:
+    - Tries OData first for structured business data
+    - Detects inactive services and informs user to activate via /IWFND/MAINT_SERVICE
+    - Falls back to SQL via ADT when OData is unavailable or incomplete
+    - Combines OData + SQL results for hybrid queries (e.g., PO headers via OData + invoice items via SQL)
+    - Tracks research history for later agent generation
 
-    Examples: 'Show me open sales orders for customer 1000',
-    'What OData services exist for plant maintenance?',
-    'Get purchase order 4500001234 with all items'
+    Use cases: sales orders, purchase orders, invoices, materials, vendors, customers,
+    stock, deliveries, accounting documents, AP/AR items — any S/4HANA business data.
+
+    After getting results, ask user if they want to create a dedicated AI agent.
     """
     return _run_sub_agent(ODATA_URL,
-        "You are the OData Agent — SAP S/4HANA data specialist. "
-        "Always try search_sap_services first, then get_service_metadata, then query. "
-        "Use smart_query for complex natural language questions. "
-        "If no OData exists, say so clearly so the caller can use the ADT agent for SQL.",
+        "You are the Hybrid Data Research Agent — SAP S/4HANA data specialist. "
+        "Try OData first (search_sap_services → get_service_metadata → query_sap_odata). "
+        "If service is not activated (403), tell user and fall back to run_sql_query. "
+        "If OData has partial data, supplement with SQL from SAP tables. "
+        "For complex questions use smart_query which plans OData + SQL steps automatically. "
+        "Track everything in research history. After answering, ask if user wants a dedicated agent.",
         question, _extract_token(ctx))
 
 
