@@ -208,15 +208,15 @@ def _generate_sf_tools(prompt: str) -> str:
 
 # ── Server templates ──────────────────────────────────────────────────────────
 _S4_TEMPLATE = '''"""
-{description} — Auto-generated AI Factory MCP Agent (S/4HANA).
+__DESCRIPTION__ — Auto-generated AI Factory MCP Agent (S/4HANA).
 Hybrid: uses OData APIs + SQL via ADT for complete data access.
 """
 import os, json, logging, httpx, xml.etree.ElementTree as ET
 from mcp.server.fastmcp import FastMCP, Context
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("{agent_name}")
+logger = logging.getLogger("__AGENT_NAME__")
 SAP_BASE_URL = os.environ.get("SAP_BASE_URL", "https://vhcals4hci.awspoc.club")
-mcp = FastMCP("{agent_name}", host="0.0.0.0", stateless_http=True)
+mcp = FastMCP("__AGENT_NAME__", host="0.0.0.0", stateless_http=True)
 def _get_token(ctx):
     try:
         for h in ["x-amzn-bedrock-agentcore-runtime-custom-saptoken", "authorization"]:
@@ -227,16 +227,26 @@ def _get_token(ctx):
     return os.environ.get("SAP_BEARER_TOKEN","")
 def _sap_get(path, token, params=None):
     with httpx.Client(verify=False, timeout=30.0) as c:
-        r = c.get(f"{{SAP_BASE_URL}}{{path}}", headers={{"Authorization":f"Bearer {{token}}","Accept":"application/json"}}, params=params or {{}})
+        r = c.get(f"{SAP_BASE_URL}{path}", headers={"Authorization":f"Bearer {token}","Accept":"application/json"}, params=params or {})
         r.raise_for_status(); return r.json()
 def _adt_sql(sql_query, token, max_rows=100):
-    """Execute SQL via ADT Data Preview (sqlConsole endpoint)."""
-    url = f"{{SAP_BASE_URL}}/sap/bc/adt/datapreview/sqlConsole"
+    """Execute SQL via ADT Data Preview — tries freestyle POST then sqlConsole GET."""
     with httpx.Client(verify=False, timeout=30.0) as c:
-        r = c.get(url, headers={{"Authorization":f"Bearer {{token}}","Accept":"application/xml"}},
-            params={{"rowNumber":str(max_rows),"sqlCommand":sql_query}})
-        r.raise_for_status()
-        return _parse_adt_xml(r.text)
+        try:
+            csrf = c.get(f"{SAP_BASE_URL}/sap/bc/adt/discovery",
+                headers={"Authorization":f"Bearer {token}","x-csrf-token":"Fetch","Accept":"*/*"}).headers.get("x-csrf-token","")
+            for accept_hdr in ["application/xml","application/vnd.sap.adt.datapreview.table.v1+xml","*/*"]:
+                r = c.post(f"{SAP_BASE_URL}/sap/bc/adt/datapreview/freestyle", content=sql_query.encode("utf-8"),
+                    headers={"Authorization":f"Bearer {token}","Content-Type":"text/plain","Accept":accept_hdr,"x-csrf-token":csrf},
+                    params={"rowNumber":str(max_rows)})
+                if r.status_code == 200: return _parse_adt_xml(r.text)
+                if r.status_code != 406: break
+        except: pass
+        r = c.get(f"{SAP_BASE_URL}/sap/bc/adt/datapreview/sqlConsole",
+            headers={"Authorization":f"Bearer {token}","Accept":"application/xml"},
+            params={"rowNumber":str(max_rows),"sqlCommand":sql_query})
+        if r.status_code == 200: return _parse_adt_xml(r.text)
+        raise RuntimeError(f"ADT SQL failed: {r.status_code}")
 def _parse_adt_xml(xml_text):
     root = ET.fromstring(xml_text)
     dp = "http://www.sap.com/adt/dataPreview"
@@ -249,62 +259,62 @@ def _parse_adt_xml(xml_text):
         data.append([d.text or "" for d in (ds.findall(f"{{{dp}}}data") if ds is not None else [])])
     rows = []
     for i in range(max(len(d) for d in data) if data else 0):
-        rows.append({{names[j]: data[j][i] if j<len(data) and i<len(data[j]) else "" for j in range(len(names))}})
+        rows.append({names[j]: data[j][i] if j<len(data) and i<len(data[j]) else "" for j in range(len(names))})
     return rows
-{tools}
+__TOOLS__
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
 '''
 
 _CALM_TEMPLATE = '''"""
-{description} — Auto-generated AI Factory MCP Agent (Cloud ALM).
+__DESCRIPTION__ — Auto-generated AI Factory MCP Agent (Cloud ALM).
 """
 import os, json, logging, httpx, time as _t
 from mcp.server.fastmcp import FastMCP, Context
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("{agent_name}")
-mcp = FastMCP("{agent_name}", host="0.0.0.0", stateless_http=True)
-_tc: dict = {{"token": None, "exp": 0}}
+logger = logging.getLogger("__AGENT_NAME__")
+mcp = FastMCP("__AGENT_NAME__", host="0.0.0.0", stateless_http=True)
+_tc = {"token": None, "exp": 0}
 def _get_calm_token():
     now = _t.time()
     if _tc["token"] and now < _tc["exp"]: return _tc["token"]
     tenant=os.environ.get("CALM_TENANT",""); region=os.environ.get("CALM_REGION","eu10")
-    r = httpx.post(os.environ.get("CALM_TOKEN_URL",f"https://{{tenant}}.authentication.{{region}}.hana.ondemand.com/oauth/token"),
-        data={{"grant_type":"client_credentials"}}, auth=(os.environ["CALM_CLIENT_ID"],os.environ["CALM_CLIENT_SECRET"]))
+    r = httpx.post(os.environ.get("CALM_TOKEN_URL",f"https://{tenant}.authentication.{region}.hana.ondemand.com/oauth/token"),
+        data={"grant_type":"client_credentials"}, auth=(os.environ["CALM_CLIENT_ID"],os.environ["CALM_CLIENT_SECRET"]))
     r.raise_for_status(); d=r.json(); _tc["token"]=d["access_token"]; _tc["exp"]=now+d.get("expires_in",3600)-300; return _tc["token"]
 def _calm_get(path, params=None):
-    base=f"https://{{os.environ.get('CALM_TENANT','')}}.{{os.environ.get('CALM_REGION','eu10')}}.alm.cloud.sap"
-    r=httpx.get(f"{{base}}{{path}}",params=params or {{}},headers={{"Authorization":f"Bearer {{_get_calm_token()}}","Accept":"application/json"}}); r.raise_for_status(); return r.json()
+    base=f"https://{os.environ.get('CALM_TENANT','')}.{os.environ.get('CALM_REGION','eu10')}.alm.cloud.sap"
+    r=httpx.get(f"{base}{path}",params=params or {},headers={"Authorization":f"Bearer {_get_calm_token()}","Accept":"application/json"}); r.raise_for_status(); return r.json()
 def _calm_post(path, body):
-    base=f"https://{{os.environ.get('CALM_TENANT','')}}.{{os.environ.get('CALM_REGION','eu10')}}.alm.cloud.sap"
-    r=httpx.post(f"{{base}}{{path}}",json=body,headers={{"Authorization":f"Bearer {{_get_calm_token()}}","Content-Type":"application/json"}}); r.raise_for_status(); return r.json() if r.content else {{}}
-{tools}
+    base=f"https://{os.environ.get('CALM_TENANT','')}.{os.environ.get('CALM_REGION','eu10')}.alm.cloud.sap"
+    r=httpx.post(f"{base}{path}",json=body,headers={"Authorization":f"Bearer {_get_calm_token()}","Content-Type":"application/json"}); r.raise_for_status(); return r.json() if r.content else {}
+__TOOLS__
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
 '''
 
 _SF_TEMPLATE = '''"""
-{description} — Auto-generated AI Factory MCP Agent (SuccessFactors).
+__DESCRIPTION__ — Auto-generated AI Factory MCP Agent (SuccessFactors).
 """
 import os, json, logging, httpx, time as _t
 from mcp.server.fastmcp import FastMCP, Context
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("{agent_name}")
-mcp = FastMCP("{agent_name}", host="0.0.0.0", stateless_http=True)
-_tc: dict = {{"token": None, "exp": 0}}
+logger = logging.getLogger("__AGENT_NAME__")
+mcp = FastMCP("__AGENT_NAME__", host="0.0.0.0", stateless_http=True)
+_tc = {"token": None, "exp": 0}
 def _get_sf_token():
     now=_t.time()
     if _tc["token"] and now < _tc["exp"]: return _tc["token"]
     dc=os.environ.get("SF_DC","4"); company_id=os.environ.get("SF_COMPANY_ID","")
-    r=httpx.post(os.environ.get("SF_TOKEN_URL",f"https://api{{dc}}.successfactors.com/oauth/token"),
-        data={{"grant_type":"client_credentials","company_id":company_id}},
+    r=httpx.post(os.environ.get("SF_TOKEN_URL",f"https://api{dc}.successfactors.com/oauth/token"),
+        data={"grant_type":"client_credentials","company_id":company_id},
         auth=(os.environ["SF_CLIENT_ID"],os.environ["SF_CLIENT_SECRET"]))
     r.raise_for_status(); d=r.json(); _tc["token"]=d["access_token"]; _tc["exp"]=now+d.get("expires_in",3600)-300; return _tc["token"]
 def _sf_get(path, params=None):
     dc=os.environ.get("SF_DC","4")
-    r=httpx.get(f"https://api{{dc}}.successfactors.com{{path}}",params={{**(params or {{}}), "$format":"json"}},
-        headers={{"Authorization":f"Bearer {{_get_sf_token()}}","Accept":"application/json"}}); r.raise_for_status(); return r.json()
-{tools}
+    r=httpx.get(f"https://api{dc}.successfactors.com{path}",params={**(params or {}), "$format":"json"},
+        headers={"Authorization":f"Bearer {_get_sf_token()}","Accept":"application/json"}); r.raise_for_status(); return r.json()
+__TOOLS__
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
 '''
@@ -468,14 +478,16 @@ def _write_agent_bridge_and_mcp_config(agent_name: str, region: str):
 
     server_key = agent_name.replace("_", "-")
     if server_key not in servers:
+        # Read Okta creds from existing ai-factory entry
+        ai_factory_env = servers.get("ai-factory", {}).get("env", {})
         servers[server_key] = {
             "command": "python",
-            "args": [f"sap-{server_key}-agent/kiro_bridge.py"],
+            "args": ["sap-smart-agent/kiro_bridge.py"],
             "env": {
-                "OKTA_DOMAIN": os.environ.get("OKTA_DOMAIN", "trial-1053860.okta.com"),
+                "OKTA_DOMAIN": ai_factory_env.get("OKTA_DOMAIN", os.environ.get("OKTA_DOMAIN", "trial-1053860.okta.com")),
                 "OKTA_AUTH_SERVER": "default",
-                "OKTA_CLIENT_ID": os.environ.get("OKTA_CLIENT_ID", ""),
-                "OKTA_CLIENT_SECRET": os.environ.get("OKTA_CLIENT_SECRET", ""),
+                "OKTA_CLIENT_ID": ai_factory_env.get("OKTA_CLIENT_ID", os.environ.get("OKTA_CLIENT_ID", "")),
+                "OKTA_CLIENT_SECRET": ai_factory_env.get("OKTA_CLIENT_SECRET", os.environ.get("OKTA_CLIENT_SECRET", "")),
                 "OKTA_SCOPES": "openid email",
                 "OKTA_REDIRECT_URI": f"http://localhost:{port}/callback",
                 "AGENTCORE_ARN_SSM_PARAM": f"/sap_generated/{agent_name}/agent_arn"
@@ -533,12 +545,12 @@ def generate_and_deploy_mcp_server(ctx: Context, prompt: str, agent_name: str) -
 
         if domain == "calm":
             tools_code   = _generate_calm_tools(prompt)
-            server_code  = _CALM_TEMPLATE.replace("{description}", f"SAP Cloud ALM agent: {prompt}").replace("{agent_name}", agent_name).replace("{tools}", tools_code)
+            server_code  = _CALM_TEMPLATE.replace("__DESCRIPTION__", f"SAP Cloud ALM agent: {prompt}").replace("__AGENT_NAME__", agent_name).replace("__TOOLS__", tools_code)
             services_used = ["calm-projects", "calm-tasks", "calm-monitoring", "calm-analytics"]
 
         elif domain == "sf":
             tools_code   = _generate_sf_tools(prompt)
-            server_code  = _SF_TEMPLATE.replace("{description}", f"SAP SuccessFactors agent: {prompt}").replace("{agent_name}", agent_name).replace("{tools}", tools_code)
+            server_code  = _SF_TEMPLATE.replace("__DESCRIPTION__", f"SAP SuccessFactors agent: {prompt}").replace("__AGENT_NAME__", agent_name).replace("__TOOLS__", tools_code)
             services_used = ["sf-odata-v2"]
 
         else:  # s4
@@ -562,11 +574,18 @@ def generate_and_deploy_mcp_server(ctx: Context, prompt: str, agent_name: str) -
             if not svcs_with_entities:
                 return json.dumps({"error": "Could not retrieve metadata for matched services."})
             tools_code  = _generate_s4_tools(prompt, svcs_with_entities, agent_name)
-            # Use string replacement instead of .format() to avoid KeyError from curly braces in generated code
-            server_code = _S4_TEMPLATE.replace("{description}", f"SAP S/4HANA agent: {prompt}").replace("{agent_name}", agent_name).replace("{tools}", tools_code)
+            server_code = _S4_TEMPLATE.replace("__DESCRIPTION__", f"SAP S/4HANA agent: {prompt}").replace("__AGENT_NAME__", agent_name).replace("__TOOLS__", tools_code)
             services_used = [s["service_path"] for s in svcs_with_entities]
 
         # Upload to S3 + trigger CodeBuild
+        # Validate generated code syntax first
+        try:
+            compile(server_code, f"{agent_name}_server.py", "exec")
+        except SyntaxError as se:
+            logger.error(f"Generated code has syntax error: {se}")
+            return json.dumps({"error": f"Generated code has syntax error at line {se.lineno}: {se.msg}",
+                               "fix": "Retry — Claude sometimes generates invalid Python"})
+
         build_id = str(uuid.uuid4())[:8]
         prefix   = f"generated/{build_id}"
         requirements = "mcp\nhttpx\nboto3\n"
