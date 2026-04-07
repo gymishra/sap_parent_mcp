@@ -308,10 +308,35 @@ def create_odata_service(ctx: Context, description: str, cds_name: str = "") -> 
         if not cds_name.startswith("z"): cds_name = f"z{cds_name}"
 
         system = (
-            "You are an SAP ABAP CDS expert. Generate a CDS view entity source.\n"
-            "Output ONLY the CDS source, no markdown, no explanation.\n"
-            "Include @OData.publish: true, @AccessControl.authorizationCheck: #NOT_REQUIRED,\n"
-            "@EndUserText.label, define root view entity syntax, key fields.\n"
+            "You are an SAP ABAP CDS expert. Generate a CDS view source.\n"
+            "Output ONLY the CDS source code, no markdown, no explanation, no ```.\n\n"
+            "CRITICAL REQUIREMENTS for @OData.publish to work:\n"
+            "1. MUST use 'define view' syntax (NOT 'define view entity' — that doesn't support @OData.publish)\n"
+            "2. MUST include @AbapCatalog.sqlViewName with a short Z-name (max 16 chars)\n"
+            "3. MUST include @AbapCatalog.compiler.compareFilter: true\n"
+            "4. MUST include @AbapCatalog.preserveKey: true\n"
+            "5. MUST include @OData.publish: true\n"
+            "6. MUST include @AccessControl.authorizationCheck: #CHECK\n"
+            "7. MUST have at least one 'key' field\n"
+            "8. Use @EndUserText.label for the view description\n"
+            "9. Add @Semantics annotations for amounts/currencies/dates where applicable\n"
+            "10. Add @ObjectModel.usageType annotations\n\n"
+            "TEMPLATE:\n"
+            "@AbapCatalog.sqlViewName: 'ZV_SHORT_NAME'\n"
+            "@AbapCatalog.compiler.compareFilter: true\n"
+            "@AbapCatalog.preserveKey: true\n"
+            "@AccessControl.authorizationCheck: #CHECK\n"
+            "@EndUserText.label: 'Description here'\n"
+            "@OData.publish: true\n"
+            "@ObjectModel.usageType:{ serviceQuality: #X, sizeCategory: #M, dataClass: #TRANSACTIONAL }\n"
+            "define view VIEW_NAME as select from TABLE_NAME {\n"
+            "  key field1,\n"
+            "  field2,\n"
+            "  @Semantics.amount.currencyCode: 'CurrencyField'\n"
+            "  amount_field,\n"
+            "  @Semantics.currencyCode: true\n"
+            "  currency_field\n"
+            "}\n"
         )
         resp = bedrock.invoke_model(
             modelId="us.anthropic.claude-sonnet-4-6",
@@ -383,10 +408,26 @@ def create_odata_service(ctx: Context, description: str, cds_name: str = "") -> 
                                   f'adtcore:name="{cds_name.upper()}"/></adtcore:objectReferences>'))
             steps.append(f"Activated ({act.status_code})")
 
+            # Retry activation if first attempt didn't trigger SADL (common issue)
+            if act.status_code == 200:
+                import time as _time
+                _time.sleep(2)
+                # Re-activate to ensure SADL runtime artifacts are generated
+                act2 = c.post(f"{SAP_BASE_URL}/sap/bc/adt/activation",
+                              headers={**base, "x-csrf-token": csrf,
+                                       "Content-Type": "application/xml", "Accept": "application/xml"},
+                              params={"method": "activate", "preauditRequested": "true"},
+                              content=(f'<?xml version="1.0" encoding="UTF-8"?>'
+                                       f'<adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">'
+                                       f'<adtcore:objectReference adtcore:uri="{ddl_path}/{cds_name}" '
+                                       f'adtcore:name="{cds_name.upper()}"/></adtcore:objectReferences>'))
+                steps.append(f"Re-activated for SADL ({act2.status_code})")
+
         svc_name = f"{cds_name.upper()}_CDS"
         return json.dumps({"status": "success", "cds_view": cds_name.upper(),
                            "odata_service_name": svc_name, "steps": steps,
-                           "next_step": f"activate_odata_service('{svc_name}')"}, indent=2)
+                           "next_step": f"Activate in /IWFND/MAINT_SERVICE → Add Service → LOCAL → {svc_name}",
+                           "note": "If service not visible, run /IWBEP/CACHE_CLEANUP first"}, indent=2)
     except Exception as e:
         return json.dumps({"error": str(e), "steps": steps})
 
