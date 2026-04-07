@@ -1,0 +1,70 @@
+<mxfile host="65bd71144e">
+    <diagram id="arch" name="AI Factory Architecture">
+        <mxGraphModel dx="1684" dy="618" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="c1" value="Kiro IDE&#10;(Developer)" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.client;rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;fontStyle=1;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;imageWidth=36;imageHeight=36;" vertex="1" parent="1">
+                    <mxGeometry x="80" y="40" width="140" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="c2" value="Amazon QuickSight&#10;(BI / Executive)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;fontStyle=1;fontColor=#000033;" vertex="1" parent="1">
+                    <mxGeometry x="280" y="40" width="160" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="c3" value="Claude Desktop&#10;/ Any MCP Client" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;fontStyle=1;fontColor=#000033;" vertex="1" parent="1">
+                    <mxGeometry x="500" y="40" width="160" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="okta" value="Okta Identity Provider&#10;OIDC / OAuth 2.0&#10;&#10;• 3-Legged OAuth (interactive users)&#10;• Client Credentials (service-to-service)&#10;• JWT carries SAP user identity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;fontStyle=0;align=left;spacingLeft=10;fontColor=#190033;" vertex="1" parent="1">
+                    <mxGeometry x="80" y="160" width="580" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="a1" style="rounded=1;strokeColor=#82B366;strokeWidth=2;entryX=0.5;entryY=0;exitX=0.5;exitY=1;" edge="1" parent="1" source="c1" target="okta">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a2" style="rounded=1;strokeColor=#82B366;strokeWidth=2;entryX=0.5;entryY=0;exitX=0.5;exitY=1;" edge="1" parent="1" source="c2" target="okta">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a3" style="rounded=1;strokeColor=#82B366;strokeWidth=2;entryX=0.5;entryY=0;exitX=0.5;exitY=1;" edge="1" parent="1" source="c3" target="okta">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="ac-bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;opacity=20;dashed=1;dashPattern=5 5;" vertex="1" parent="1">
+                    <mxGeometry x="20" y="320" width="960" height="380" as="geometry"/>
+                </mxCell>
+                <mxCell id="ac-label" value="AWS Bedrock AgentCore" style="text;html=1;fontSize=14;fontStyle=1;fillColor=none;align=left;" vertex="1" parent="1">
+                    <mxGeometry x="30" y="325" width="250" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="factory" value="AI Factory MCP Server  (Research Platform)&#10;Runtime: sap_smart_agent  |  Model: claude-sonnet-4-6&#10;Connected to: NON-PRODUCTION SAP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=11;fontStyle=1;verticalAlign=top;spacingTop=8;fontColor=#000033;" vertex="1" parent="1">
+                    <mxGeometry x="40" y="360" width="540" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="t1" value="odata_agent_tool&#10;S/4HANA OData&#10;12 internal tools" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=10;fontStyle=0;fontColor=#000033;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="420" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="t2" value="adt_agent_tool&#10;ABAP / ADT / CDS&#10;22 internal tools" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=10;fontStyle=0;fontColor=#000033;" vertex="1" parent="1">
+                    <mxGeometry x="230" y="420" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="t3" value="calm_agent_tool&#10;Cloud ALM / Rise&#10;46 internal tools" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=10;fontStyle=0;fontColor=#000033;" vertex="1" parent="1">
+                    <mxGeometry x="400" y="420" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4" value="sf_agent_tool&#10;SuccessFactors HCM&#10;11 internal tools" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=10;fontStyle=0;fontColor=#000033;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="500" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="t5" value="generator_agent_tool&#10;Create + Deploy&#10;New Agents" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=10;fontStyle=1;fontColor=#000033;" vertex="1" parent="1">
+                    <mxGeometry x="230" y="500" width="150" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="a4" value="JWT Bearer Token" style="rounded=1;strokeColor=#B85450;strokeWidth=2;entryX=0.4;entryY=0;exitX=0.5;exitY=1;fontSize=10;fontStyle=2;" edge="1" parent="1" source="okta" target="factory">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="pipe" value="Agent Generation Pipeline" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;fontStyle=1;verticalAlign=top;spacingTop=5;fontColor=#000033;" vertex="1" parent="1">
+                    <mxGeometry x="590" y="360" width="340" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="p-bedrock" value="Bedrock&#10;Claude" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666;fontSize=9;fontColor=#000033;" vertex="1" parent="1">
+                    <mxGeometry x="665" y="400" width="60" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="p-s3" value="S3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666;fontSize=9;fontColor=#000033;" vertex="1" parent="1">
+                    <mxGeometry x="740" y="400" width="50" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="p-cb" value="Code&#10;Build" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666;fontSize=9;fontColor=#000033;" vertex="1" parent="1">
+                    <mxGeometry x="805" y="400" width="50" height="40" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

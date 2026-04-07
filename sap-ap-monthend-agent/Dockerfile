@@ -6,9 +6,9 @@ ENV UV_SYSTEM_PYTHON=1 UV_COMPILE_BYTECODE=1
 
 
 
-COPY requirements.txt requirements.txt
+COPY requirements_server.txt requirements_server.txt
 # Install from requirements file
-RUN uv pip install -r requirements.txt
+RUN uv pip install -r requirements_server.txt
 
 
 
@@ -37,4 +37,4 @@ COPY . .
 
 # Use the full module path
 
-CMD ["opentelemetry-instrument", "python", "-m", "sap_smart_mcp_server"]
+CMD ["opentelemetry-instrument", "python", "-m", "sap_ap_monthend_mcp_server"]

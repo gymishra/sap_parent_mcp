@@ -59,8 +59,13 @@ def get_okta_token():
     srv = HTTPServer(("localhost",OKTA_CALLBACK_PORT),CallbackHandler)
     CallbackHandler.auth_code = None
     t = Thread(target=srv.handle_request,daemon=True); t.start()
-    webbrowser.open(url); t.join(timeout=120); srv.server_close()
-    if not CallbackHandler.auth_code: raise RuntimeError("No auth code")
+    opened = webbrowser.open(url)
+    if not opened:
+        print(f"\n[Okta Login Required] Open this URL in your browser:\n{url}\n", file=sys.stderr, flush=True)
+    else:
+        print(f"\n[Okta Login] Browser opened. If nothing appeared, visit:\n{url}\n", file=sys.stderr, flush=True)
+    t.join(timeout=120); srv.server_close()
+    if not CallbackHandler.auth_code: raise RuntimeError(f"Okta login timed out. Please open this URL manually:\n{url}")
     creds = base64.b64encode(f"{OKTA_CLIENT_ID}:{OKTA_CLIENT_SECRET}".encode()).decode()
     with httpx.Client() as c:
         r = c.post(OKTA_TOKEN_URL,data={"grant_type":"authorization_code",
