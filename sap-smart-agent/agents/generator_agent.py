@@ -533,14 +533,12 @@ def generate_and_deploy_mcp_server(ctx: Context, prompt: str, agent_name: str) -
 
         if domain == "calm":
             tools_code   = _generate_calm_tools(prompt)
-            server_code  = _CALM_TEMPLATE.format(
-                description=f"SAP Cloud ALM agent: {prompt}", agent_name=agent_name, tools=tools_code)
+            server_code  = _CALM_TEMPLATE.replace("{description}", f"SAP Cloud ALM agent: {prompt}").replace("{agent_name}", agent_name).replace("{tools}", tools_code)
             services_used = ["calm-projects", "calm-tasks", "calm-monitoring", "calm-analytics"]
 
         elif domain == "sf":
             tools_code   = _generate_sf_tools(prompt)
-            server_code  = _SF_TEMPLATE.format(
-                description=f"SAP SuccessFactors agent: {prompt}", agent_name=agent_name, tools=tools_code)
+            server_code  = _SF_TEMPLATE.replace("{description}", f"SAP SuccessFactors agent: {prompt}").replace("{agent_name}", agent_name).replace("{tools}", tools_code)
             services_used = ["sf-odata-v2"]
 
         else:  # s4
@@ -564,14 +562,14 @@ def generate_and_deploy_mcp_server(ctx: Context, prompt: str, agent_name: str) -
             if not svcs_with_entities:
                 return json.dumps({"error": "Could not retrieve metadata for matched services."})
             tools_code  = _generate_s4_tools(prompt, svcs_with_entities, agent_name)
-            server_code = _S4_TEMPLATE.format(
-                description=f"SAP S/4HANA agent: {prompt}", agent_name=agent_name, tools=tools_code)
+            # Use string replacement instead of .format() to avoid KeyError from curly braces in generated code
+            server_code = _S4_TEMPLATE.replace("{description}", f"SAP S/4HANA agent: {prompt}").replace("{agent_name}", agent_name).replace("{tools}", tools_code)
             services_used = [s["service_path"] for s in svcs_with_entities]
 
         # Upload to S3 + trigger CodeBuild
         build_id = str(uuid.uuid4())[:8]
         prefix   = f"generated/{build_id}"
-        requirements = "fastmcp\nhttpx\nbedrock-agentcore-starter-toolkit\nboto3\n"
+        requirements = "mcp\nhttpx\nboto3\n"
         meta = {"agent_name": agent_name, "prompt": prompt, "domain": domain, "services": services_used}
 
         for key, content in [(f"{prefix}/server.py", server_code),
@@ -606,8 +604,9 @@ def generate_and_deploy_mcp_server(ctx: Context, prompt: str, agent_name: str) -
         }, indent=2)
 
     except Exception as e:
-        logger.error(f"generate_and_deploy_mcp_server failed: {e}")
-        return json.dumps({"error": str(e)})
+        import traceback
+        logger.error(f"generate_and_deploy_mcp_server failed: {e}\n{traceback.format_exc()}")
+        return json.dumps({"error": str(e), "traceback": traceback.format_exc()})
 
 
 # ── Strands wrapper ───────────────────────────────────────────────────────────
