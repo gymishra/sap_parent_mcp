@@ -171,7 +171,10 @@ def odata_agent_tool(ctx: Context, question: str) -> str:
         "If service is not activated (403), tell user and fall back to run_sql_query. "
         "If OData has partial data, supplement with SQL from SAP tables. "
         "For complex questions use smart_query which plans OData + SQL steps automatically. "
-        "Track everything in research history. After answering, ask if user wants a dedicated agent.",
+        "Track everything in research history. After answering, ask if user wants a dedicated agent. "
+        "CRITICAL: When SQL was used because no OData exists, offer to create a CDS view "
+        "with @OData.publish via create_odata_service. Tell user to activate in /IWFND/MAINT_SERVICE. "
+        "Once activated, test it, then offer to generate a production-safe MCP agent using only OData.",
         question, _extract_token(ctx))
 
 

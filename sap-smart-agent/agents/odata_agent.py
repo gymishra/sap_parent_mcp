@@ -182,20 +182,39 @@ def run_sql_query(ctx: Context, sql_query: str, max_rows: int = 100) -> str:
 
 
 def _adt_sql(sql_query: str, token: str, max_rows: int = 100) -> list:
-    """Execute SQL via ADT freestyle data preview and parse the columnar XML response."""
-    url = f"{SAP_BASE_URL}/sap/bc/adt/datapreview/freestyle"
+    """Execute SQL via ADT Data Preview — tries freestyle POST first, then sqlConsole GET."""
     with httpx.Client(verify=False, timeout=30.0) as c:
-        # Get CSRF token
-        csrf_resp = c.get(f"{SAP_BASE_URL}/sap/bc/adt/discovery",
-                          headers={"Authorization": f"Bearer {token}", "x-csrf-token": "Fetch",
-                                   "Accept": "*/*"})
-        csrf = csrf_resp.headers.get("x-csrf-token", "")
-        r = c.post(url, content=sql_query.encode("utf-8"),
-                   headers={"Authorization": f"Bearer {token}", "Content-Type": "text/plain",
-                            "Accept": "application/xml", "x-csrf-token": csrf},
-                   params={"rowNumber": str(max_rows)})
-        r.raise_for_status()
-        return _parse_adt_data_preview(r.text)
+        # Method 1: freestyle POST (requires CSRF)
+        try:
+            csrf_resp = c.get(f"{SAP_BASE_URL}/sap/bc/adt/discovery",
+                              headers={"Authorization": f"Bearer {token}", "x-csrf-token": "Fetch",
+                                       "Accept": "*/*"})
+            csrf = csrf_resp.headers.get("x-csrf-token", "")
+            for accept_hdr in ["application/xml",
+                                "application/vnd.sap.adt.datapreview.table.v1+xml",
+                                "*/*"]:
+                r = c.post(f"{SAP_BASE_URL}/sap/bc/adt/datapreview/freestyle",
+                           content=sql_query.encode("utf-8"),
+                           headers={"Authorization": f"Bearer {token}", "Content-Type": "text/plain",
+                                    "Accept": accept_hdr, "x-csrf-token": csrf},
+                           params={"rowNumber": str(max_rows)})
+                if r.status_code == 200:
+                    return _parse_adt_data_preview(r.text)
+                if r.status_code != 406:
+                    break
+        except Exception:
+            pass
+        # Method 2: sqlConsole GET (fallback)
+        try:
+            r = c.get(f"{SAP_BASE_URL}/sap/bc/adt/datapreview/sqlConsole",
+                      headers={"Authorization": f"Bearer {token}", "Accept": "application/xml"},
+                      params={"rowNumber": str(max_rows), "sqlCommand": sql_query})
+            if r.status_code == 200:
+                return _parse_adt_data_preview(r.text)
+        except Exception:
+            pass
+        # Both failed — raise with details
+        raise RuntimeError(f"ADT SQL failed: freestyle={getattr(r, 'status_code', '?')}")
 
 
 def _parse_adt_data_preview(xml_text: str) -> list:
@@ -377,6 +396,15 @@ def create_odata_strands_agent() -> Agent:
                 "- All your queries (OData + SQL) are tracked in research history\n"
                 "- After answering, ask: 'Would you like me to create a dedicated AI agent for this?'\n"
                 "- If yes, call get_research_summary to get the history, then hand off to generator_agent_tool\n\n"
+                "CDS VIEW CREATION (production-safe path):\n"
+                "When SQL was needed because no OData service exists:\n"
+                "1. Tell user: 'This data came from SQL. For production use, I can create a CDS view with OData.'\n"
+                "2. If user agrees, use the adt_agent_tool to call create_odata_service with the SQL tables/fields\n"
+                "3. Tell user: 'CDS view created. Please activate service [NAME]_CDS in /IWFND/MAINT_SERVICE → Add Service → LOCAL'\n"
+                "4. Once user confirms activation, test the new OData endpoint via query_sap_odata\n"
+                "5. If test passes, ask: 'Service is live. Want me to create a dedicated MCP agent using this OData service?'\n"
+                "6. If yes, feed research history (now with the new OData service) to generator_agent_tool\n"
+                "7. The generated MCP agent uses ONLY OData — no ADT/SQL needed in production\n\n"
                 "IMPORTANT: Always present data clearly. If you used both OData and SQL, explain which "
                 "data came from where so the user understands the data sources."
             )

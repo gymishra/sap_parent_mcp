@@ -175,13 +175,38 @@ def get_type_info(ctx: Context, type_name: str) -> str:
 
 @mcp.tool()
 def get_table_contents(ctx: Context, sql_query: str, max_rows: int = 100) -> str:
-    """Execute a SQL SELECT on SAP database tables via ADT Data Preview."""
+    """Execute a SQL SELECT on SAP database tables via ADT Data Preview.
+    Tries freestyle POST first, then sqlConsole GET as fallback."""
     token = _get_token(ctx)
     try:
-        import urllib.parse
-        encoded = urllib.parse.quote(sql_query)
-        return _adt_get(f"/sap/bc/adt/datapreview/sqlConsole?rowNumber={max_rows}&sqlCommand={encoded}",
-                        token, accept="application/xml")
+        with httpx.Client(verify=False, timeout=30.0) as c:
+            # Method 1: freestyle POST (requires CSRF)
+            csrf_resp = c.get(f"{SAP_BASE_URL}/sap/bc/adt/discovery",
+                              headers={"Authorization": f"Bearer {token}", "x-csrf-token": "Fetch",
+                                       "Accept": "*/*"})
+            csrf = csrf_resp.headers.get("x-csrf-token", "")
+            # Try multiple Accept headers — SAP versions differ
+            for accept_hdr in ["application/xml",
+                                "application/vnd.sap.adt.datapreview.table.v1+xml",
+                                "*/*"]:
+                r = c.post(f"{SAP_BASE_URL}/sap/bc/adt/datapreview/freestyle",
+                           content=sql_query.encode("utf-8"),
+                           headers={"Authorization": f"Bearer {token}", "Content-Type": "text/plain",
+                                    "Accept": accept_hdr, "x-csrf-token": csrf},
+                           params={"rowNumber": str(max_rows)})
+                if r.status_code == 200:
+                    return r.text
+                if r.status_code != 406:
+                    break  # not a content negotiation issue
+            # Method 2: sqlConsole GET (fallback)
+            import urllib.parse
+            r2 = c.get(f"{SAP_BASE_URL}/sap/bc/adt/datapreview/sqlConsole",
+                       headers={"Authorization": f"Bearer {token}", "Accept": "application/xml"},
+                       params={"rowNumber": str(max_rows), "sqlCommand": sql_query})
+            if r2.status_code == 200:
+                return r2.text
+            return json.dumps({"error": f"freestyle={r.status_code}, sqlConsole={r2.status_code}",
+                               "freestyle_body": r.text[:300], "sqlConsole_body": r2.text[:300]})
     except Exception as e: return json.dumps({"error": str(e)})
 
 

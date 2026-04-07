@@ -230,14 +230,11 @@ def _sap_get(path, token, params=None):
         r = c.get(f"{{SAP_BASE_URL}}{{path}}", headers={{"Authorization":f"Bearer {{token}}","Accept":"application/json"}}, params=params or {{}})
         r.raise_for_status(); return r.json()
 def _adt_sql(sql_query, token, max_rows=100):
-    """Execute SQL via ADT freestyle data preview."""
-    url = f"{{SAP_BASE_URL}}/sap/bc/adt/datapreview/freestyle"
+    """Execute SQL via ADT Data Preview (sqlConsole endpoint)."""
+    url = f"{{SAP_BASE_URL}}/sap/bc/adt/datapreview/sqlConsole"
     with httpx.Client(verify=False, timeout=30.0) as c:
-        csrf = c.get(f"{{SAP_BASE_URL}}/sap/bc/adt/discovery",
-            headers={{"Authorization":f"Bearer {{token}}","x-csrf-token":"Fetch","Accept":"*/*"}}).headers.get("x-csrf-token","")
-        r = c.post(url, content=sql_query.encode("utf-8"),
-            headers={{"Authorization":f"Bearer {{token}}","Content-Type":"text/plain","Accept":"application/xml","x-csrf-token":csrf}},
-            params={{"rowNumber":str(max_rows)}})
+        r = c.get(url, headers={{"Authorization":f"Bearer {{token}}","Accept":"application/xml"}},
+            params={{"rowNumber":str(max_rows),"sqlCommand":sql_query}})
         r.raise_for_status()
         return _parse_adt_xml(r.text)
 def _parse_adt_xml(xml_text):

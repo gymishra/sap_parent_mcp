@@ -127,6 +127,10 @@ async def list_tools():
         async with ClientSession(r, w) as session:
             await session.initialize()
             result = await session.list_tools()
+            # Strip outputSchema to prevent Kiro validation errors
+            for tool in result.tools:
+                if hasattr(tool, "outputSchema"):
+                    object.__setattr__(tool, "outputSchema", None)
             return result.tools
 
 

@@ -35,10 +35,17 @@ Current AI Factory has separate OData and ADT tools that don't collaborate. User
 
 ## Example Flow
 1. User: "Show me POs with invoice details"
-2. Agent → OData: `MM_PUR_PO_MAINT_V2_SRV` → gets PO headers
-3. Agent → detects: no invoice details in OData response
-4. Agent → SQL: `SELECT * FROM rseg WHERE ebeln = '4500000001'` → gets invoice items
-5. Agent → merges, presents combined result
-6. Agent: "Want me to create a dedicated PO-Invoice agent?"
+2. Agent → OData: searches for PO service → finds `MM_PUR_PO_MAINT_V2_SRV` → gets PO headers
+3. Agent → OData: searches for invoice service → not activated (403)
+4. Agent → SQL fallback: `SELECT * FROM rseg WHERE ebeln = '4500000001'` → gets invoice items
+5. Agent → presents combined result to user
+6. Agent: "The invoice data came from SQL (no OData service active). Want me to create a CDS view and expose it as OData?"
 7. User: "Yes"
-8. Generator receives history → creates MCP server with `get_po_with_invoices()` tool that does both internally
+8. Agent → calls `create_odata_service` → CDS view created with @OData.publish
+9. Agent: "CDS view created. Please activate service `ZI_INVOICE_ITEMS_CDS` in /IWFND/MAINT_SERVICE → Add Service → LOCAL"
+10. User: "Done, activated"
+11. Agent → tests the new OData endpoint → confirms it works
+12. Agent: "Service is live. Want me to create a dedicated MCP agent that uses this OData service?"
+13. User: "Yes"
+14. Agent → feeds research history (OData services + new CDS service) to generator_agent_tool
+15. Generator creates MCP server using only OData (production-safe, no ADT needed)
