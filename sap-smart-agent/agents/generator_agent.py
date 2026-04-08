@@ -139,7 +139,13 @@ def _generate_s4_tools(prompt: str, services_with_entities: list, agent_name: st
         "        details = _adt_sql(f\"SELECT ... FROM detail_table WHERE key = '{h['KeyField']}'\", token)\n"
         "        h['details'] = details\n"
         "    return json.dumps(headers)\n\n"
-        "Return ONLY function definitions, no imports, no main block."
+        "CRITICAL PYTHON SYNTAX RULES:\n"
+        "- Do NOT use f-strings with nested quotes — use string concatenation instead\n"
+        "- Use 'Bearer ' + token, NOT f'Bearer {token}'\n"
+        "- Each function must start with @mcp.tool() decorator on its own line\n"
+        "- Each function must have proper 4-space indentation\n"
+        "- Wrap all tool logic in try/except returning json.dumps\n"
+        "- No markdown, no ```, no explanation — ONLY Python function definitions\n"
     )
     resp = bedrock.invoke_model(
         modelId=MODEL_ID,
