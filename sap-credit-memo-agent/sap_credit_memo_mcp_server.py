@@ -54,6 +54,20 @@ def _parse_date(val):
 
 
 @mcp.tool()
+def debug_headers(ctx: Context) -> str:
+    """Debug tool — dumps all request headers visible to the MCP server."""
+    try:
+        req = ctx.request_context.request
+        headers = dict(req.headers)
+        has_token = any("token" in k.lower() or "auth" in k.lower() for k in headers)
+        return json.dumps({"headers": headers, "has_auth_header": has_token,
+                           "request_type": str(type(req))})
+    except Exception as e:
+        return json.dumps({"error": str(e), "ctx_type": str(type(ctx)),
+                           "has_request_context": hasattr(ctx, "request_context")})
+
+
+@mcp.tool()
 def get_unapproved_credit_memos(ctx: Context, sales_org: str = "", top: int = 100) -> str:
     """Get credit memo requests that are still unapproved.
     Uses custom CDS view ZI_CREDITMEMO_EXT_CDS for reason code, net value, approval status.
